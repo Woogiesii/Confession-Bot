@@ -61,6 +61,18 @@ async def on_ready():
 			servers[guild.id][member.id] = True
 
 
+async def check_if_delete(msg, confession, confirmation):
+	def check(deleted_msg):
+		return msg.id == deleted_msg.id 
+
+	try:
+		await bot.wait_for('message_delete', timeout=120, check=check)
+		await confession.delete()
+		await confirmation.edit(content=f'✅ Confession with message id `{confession.id}` in {confession.channel.mention} has been deleted.')
+	except:
+		return
+
+
 @bot.command()
 @commands.dm_only()
 async def confess(ctx):
@@ -116,6 +128,21 @@ async def confess(ctx):
 	
 	confession = await confess_in.send(embed = prepare_embed(msg))
 	confirmation = await ctx.send(f'✅ Your confession has been added to {confess_in.mention}!')
+
+	asyncio.create_task(check_if_delete(msg, confession, confirmation))
+
+	def check_edit(before, after):
+		return msg.id == after.id
+	
+	edit_count = 0
+	while True:
+		try:
+			before, after = await bot.wait_for('message_edit', timeout=120, check=check_edit)
+			await confession.edit(embed = prepare_embed(after))
+			edit_count += 1
+			await confirmation.edit(content=f'✅ Confession with message id `{confession.id}`` in {confess_in.mention} has been edited ({edit_count}).')
+		except:
+			return
 
 
 bot.run(TOKEN)
