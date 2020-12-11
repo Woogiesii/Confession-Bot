@@ -2,11 +2,13 @@ import os
 import asyncio
 import discord
 import datetime
+import requests
 from discord.ext import commands
 from dotenv import load_dotenv
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
+TENOR_API_KEY = os.getenv('TENOR_API_KEY')
 
 bot = commands.Bot(command_prefix='?')
 
@@ -27,6 +29,15 @@ def is_int(s):
 	except ValueError:
 		return False
 
+def get_tenor_url(view_url):
+	gif_id = view_url.split('-')[-1]
+	url = f'https://api.tenor.com/v1/gifs?ids={gif_id}&key={TENOR_API_KEY}'
+	res = requests.get(url)
+	if res.status_code == 200:
+		return res.json()['results'][0]['media'][0]['gif']['url']
+	else:
+		return None
+
 def prepare_embed(msg):
 	embedVar = discord.Embed(title='Anonymous Confession')
 	utcnow = datetime.datetime.utcnow()
@@ -40,13 +51,15 @@ def prepare_embed(msg):
 		data = msg.embeds[0]
 		if data.type == 'image':
 			embedVar.set_image(url=data.url)
+		if data.type == 'gifv' and data.provider.name == 'Tenor':
+			embedVar.set_image(url=get_tenor_url(data.url))
 
 	if msg.attachments:
 		file = msg.attachments[0]
 		if file.url.lower().endswith(('png', 'jpeg', 'jpg', 'gif', 'webp')):
 			embedVar.set_image(url=file.url)
 		else:
-			embedVar.add_field(name='Attachment', value=f'[{file.filename}]({file.url})', inline=False)
+			embedVar.add_field(name='Attachment', value=f'[{file.filename}]({file.url})')
 
 	return embedVar
 
@@ -69,7 +82,7 @@ async def check_if_delete(msg, confession, confirmation):
 		await bot.wait_for('message_delete', timeout=120, check=check)
 		await confession.delete()
 		await confirmation.edit(content=f'✅ Confession with message id `{confession.id}` in {confession.channel.mention} has been deleted.')
-	except:
+	except asyncio.TimeoutError:
 		return
 
 
@@ -92,7 +105,7 @@ async def confess(ctx):
 	await ctx.send(embed=embedVar)
 
 	def server_select(msg):
-		return msg.channel == ctx.channel and ((is_int(msg.content) and int(msg.content) <= i and int(msg.content) >= 1) or msg.content == 'cancel')
+		return msg.channel == ctx.channel and msg.author == ctx.author and ((is_int(msg.content) and int(msg.content) <= i and int(msg.content) >= 1) or msg.content == 'cancel')
 
 	try:
 		msg = await bot.wait_for('message', timeout=60, check=server_select)
@@ -113,7 +126,7 @@ async def confess(ctx):
 	await ctx.send(embed=embedVar)
 
 	def check_confess(msg):
-		return msg.channel == ctx.channel
+		return msg.channel == ctx.channel and msg.author == ctx.author
 
 	try:
 		msg = await bot.wait_for('message', timeout=120, check=check_confess)
@@ -125,7 +138,7 @@ async def confess(ctx):
 		await ctx.send('✅ Cancelled')
 		return
 
-	
+	await asyncio.sleep(0)
 	confession = await confess_in.send(embed = prepare_embed(msg))
 	confirmation = await ctx.send(f'✅ Your confession has been added to {confess_in.mention}!')
 
@@ -140,8 +153,8 @@ async def confess(ctx):
 			before, after = await bot.wait_for('message_edit', timeout=120, check=check_edit)
 			await confession.edit(embed = prepare_embed(after))
 			edit_count += 1
-			await confirmation.edit(content=f'✅ Confession with message id `{confession.id}`` in {confess_in.mention} has been edited ({edit_count}).')
-		except:
+			await confirmation.edit(content=f'✅ Confession with message id `{confession.id}` in {confess_in.mention} has been edited ({edit_count}).')
+		except asyncio.TimeoutError:
 			return
 
 
