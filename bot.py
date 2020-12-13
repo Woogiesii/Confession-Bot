@@ -38,6 +38,13 @@ def get_tenor_url(view_url):
 	else:
 		return None
 
+def get_giphy_url(view_url):
+	if view_url.lower().endswith('gif'):
+		return view_url
+	else:
+		gif_id = view_url.split('-')[-1]
+		return f'https://media.giphy.com/media/{gif_id}/giphy.gif'
+
 def prepare_embed(msg):
 	embedVar = discord.Embed(title='Anonymous Confession')
 	utcnow = datetime.datetime.utcnow()
@@ -53,6 +60,8 @@ def prepare_embed(msg):
 			embedVar.set_image(url=data.url)
 		if data.type == 'gifv' and data.provider.name == 'Tenor':
 			embedVar.set_image(url=get_tenor_url(data.url))
+		if data.type == 'gifv' and data.provider.name == 'Giphy':
+			embedVar.set_image(url=get_giphy_url(data.url))
 
 	if msg.attachments:
 		file = msg.attachments[0]
@@ -138,7 +147,6 @@ async def confess(ctx):
 		await ctx.send('✅ Cancelled')
 		return
 
-	await asyncio.sleep(0)
 	confession = await confess_in.send(embed = prepare_embed(msg))
 	confirmation = await ctx.send(f'✅ Your confession has been added to {confess_in.mention}!')
 
@@ -148,6 +156,12 @@ async def confess(ctx):
 		return msg.id == after.id
 	
 	edit_count = 0
+	if msg.edited_at:
+		await confession.edit(embed = prepare_embed(after))
+		edit_count += 1
+		await confirmation.edit(content=f'✅ Confession with message id `{confession.id}` in {confess_in.mention} has been edited ({edit_count}).')
+	
+	
 	while True:
 		try:
 			before, after = await bot.wait_for('message_edit', timeout=120, check=check_edit)
