@@ -15,6 +15,7 @@ bot = commands.Bot(command_prefix='?')
 servers = {}
 
 confession_channel = {
+	# server_id : confession_channel_id
 	718886828891176997 : 771297583753855007,
 	786247752635908116 : 786247752635908119,
 	414279195821080597 : 782703953086775346,
@@ -30,6 +31,8 @@ def is_int(s):
 		return False
 
 def get_tenor_url(view_url):
+	if view_url.lower().endswith('gif'):
+		return view_url
 	gif_id = view_url.split('-')[-1]
 	url = f'https://api.tenor.com/v1/gifs?ids={gif_id}&key={TENOR_API_KEY}'
 	res = requests.get(url)
@@ -47,9 +50,7 @@ def get_giphy_url(view_url):
 
 def prepare_embed(msg):
 	embedVar = discord.Embed(title='Anonymous Confession')
-	utcnow = datetime.datetime.utcnow()
-	istnow = utcnow + datetime.timedelta(hours = 5, minutes = 30)
-	embedVar.set_footer(text = '{0:%b %d • %I:%M %p}'.format(istnow))
+	embedVar.timestamp = datetime.datetime.utcnow()
 
 	if msg.content:
 		embedVar.description = msg.content
@@ -58,10 +59,16 @@ def prepare_embed(msg):
 		data = msg.embeds[0]
 		if data.type == 'image':
 			embedVar.set_image(url=data.url)
+			if data.url == msg.content:
+				embedVar.description = None
 		if data.type == 'gifv' and data.provider.name == 'Tenor':
 			embedVar.set_image(url=get_tenor_url(data.url))
+			if data.url == msg.content:
+				embedVar.description = None
 		if data.type == 'gifv' and data.provider.name == 'Giphy':
 			embedVar.set_image(url=get_giphy_url(data.url))
+			if data.url == msg.content:
+				embedVar.description = None
 
 	if msg.attachments:
 		file = msg.attachments[0]
@@ -157,7 +164,7 @@ async def confess(ctx):
 	
 	edit_count = 0
 	if msg.edited_at:
-		await confession.edit(embed = prepare_embed(after))
+		await confession.edit(embed = prepare_embed(msg))
 		edit_count += 1
 		await confirmation.edit(content=f'✅ Confession with message id `{confession.id}` in {confess_in.mention} has been edited ({edit_count}).')
 	
